@@ -1,7 +1,7 @@
-const User = require('../models/User');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+import User from '../models/User.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 // Configure Multer storage
 const storage = multer.diskStorage({
@@ -36,7 +36,7 @@ const upload = multer({
  * @route POST /api/enrollment/face
  * @access Private/Student
  */
-exports.enrollFace = async (req, res) => {
+export const enrollFace = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ status: 'fail', message: err.message });
@@ -76,7 +76,7 @@ exports.enrollFace = async (req, res) => {
  * @route GET /api/enrollment/status
  * @access Private
  */
-exports.getEnrollmentStatus = async (req, res) => {
+export const getEnrollmentStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('faceEnrollment');
     res.status(200).json({

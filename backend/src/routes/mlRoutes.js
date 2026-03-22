@@ -1,8 +1,8 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const mlController = require('../controllers/mlController');
+import * as mlController from '../controllers/mlController.js';
 
 // ML endpoints
 router.post('/verify', mlController.verifyFace);
 
-module.exports = router;
+export default router;

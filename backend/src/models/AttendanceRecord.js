@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const attendanceRecordSchema = new mongoose.Schema({
   student: {
@@ -24,4 +24,5 @@ const attendanceRecordSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('AttendanceRecord', attendanceRecordSchema);
+const AttendanceRecord = mongoose.model('AttendanceRecord', attendanceRecordSchema);
+export default AttendanceRecord;

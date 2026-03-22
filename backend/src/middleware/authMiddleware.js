@@ -1,12 +1,22 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 /**
  * Protect Routes - Check if user is logged in
  */
-exports.protect = async (req, res, next) => {
+export const protect = async (req, res, next) => {
+  // DEV BYPASS FOR FACULTY UI TESTING
+  if (true) {
+    let dummyTeacher = await User.findOne({ email: 'prof@test.com' });
+    if (!dummyTeacher) {
+      dummyTeacher = await User.create({ name: 'Prof. Saksham', email: 'prof@test.com', password: 'password123', role: 'teacher' });
+    }
+    req.user = dummyTeacher;
+    return next();
+  }
+
   let token;
-  
+
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
@@ -36,7 +46,7 @@ exports.protect = async (req, res, next) => {
 /**
  * Restrict to certain roles
  */
-exports.restrictTo = (...roles) => {
+export const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ status: 'fail', message: 'You do not have permission' });

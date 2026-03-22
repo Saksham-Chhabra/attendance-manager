@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const attendanceSessionSchema = new mongoose.Schema({
   class: {
@@ -22,4 +22,5 @@ const attendanceSessionSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('AttendanceSession', attendanceSessionSchema);
+const AttendanceSession = mongoose.model('AttendanceSession', attendanceSessionSchema);
+export default AttendanceSession;

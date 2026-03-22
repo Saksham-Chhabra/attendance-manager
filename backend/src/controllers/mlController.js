@@ -1,49 +1,40 @@
-const { spawn } = require('child_process');
-const path = require('path');
-const User = require('../models/User');
+import path from 'path';
+import fs from 'fs';
+import multer from 'multer';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
+
+const ML_SERVER_URL = 'http://localhost:5050';
 
 /**
- * Run Python Inference Script with Matching
- * @param {string} imagePath 
- * @returns {Promise<Object>}
+ * Send image to persistent ML Server for fast inference
  */
-const runInference = (imagePath) => {
-  return new Promise((resolve, reject) => {
-    const pythonPath = 'python';
-    // Use the OpenCV-based real face detection script
-    const scriptPath = path.join(__dirname, '../../../ml/opencv_inference.py');
-    const knownFacesDir = path.join(__dirname, '../../../ml/known_faces1');
-    
-    // Pass both image path and known faces directory
-    const pyProcess = spawn(pythonPath, [scriptPath, imagePath, knownFacesDir]);
+const runInference = async (imagePath) => {
+  const startTime = Date.now();
+  console.log(`[ML] ⏳ Starting inference for: ${path.basename(imagePath)}`);
+  const formData = new FormData();
+  formData.append('photo', fs.createReadStream(imagePath));
 
-    let output = '';
-    let errorOutput = '';
-
-    pyProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    pyProcess.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-    });
-
-    pyProcess.on('close', (code) => {
-      if (code !== 0) {
-        return reject(new Error(`Python process exited with code ${code}: ${errorOutput}`));
-      }
-      try {
-        const result = JSON.parse(output);
-        resolve(result);
-      } catch (e) {
-        reject(new Error(`Failed to parse Python output: ${output}`));
-      }
-    });
+  console.log(`[ML] 📡 Sending to ML Server...`);
+  const response = await fetch(`${ML_SERVER_URL}/analyze`, {
+    method: 'POST',
+    body: formData,
+    headers: formData.getHeaders(),
+    timeout: 30000, // 30s timeout
   });
-};
 
-const multer = require('multer');
-const fs = require('fs');
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`ML Server error (${response.status}): ${errText}`);
+  }
+
+  const result = await response.json();
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`[ML] ✅ Inference complete: ${result.faces_count} faces detected in ${elapsed}s`);
+  console.log(`[ML]    Server-side inference time: ${result.inference_time}s`);
+  
+  return result;
+};
 
 // Configure Multer for temp storage
 const storage = multer.diskStorage({
@@ -64,38 +55,48 @@ const upload = multer({ storage }).single('photo');
 /**
  * Verify Face via ML Pipeline
  * @route POST /api/ml/verify
- * @access Public/Private
  */
-exports.verifyFace = async (req, res) => {
+export const verifyFace = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
+      console.log(`[ML] ❌ Upload error: ${err.message}`);
       return res.status(400).json({ status: 'fail', message: err.message });
     }
 
     if (!req.file) {
+      console.log(`[ML] ❌ No photo in request`);
       return res.status(400).json({ status: 'fail', message: 'Please upload a photo' });
     }
 
     try {
-        const absolutePath = path.resolve(req.file.path);
-        const result = await runInference(absolutePath);
+      const absolutePath = path.resolve(req.file.path);
+      console.log(`[ML] 📷 Photo received: ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)} KB)`);
 
-        // Delete temp file after inference
-        fs.unlinkSync(absolutePath);
+      const result = await runInference(absolutePath);
 
-        if (result.status === 'error') {
-            return res.status(400).json({ status: 'fail', message: result.message });
-        }
+      // Delete temp file
+      fs.unlinkSync(absolutePath);
 
-        // TODO: Perform matching against database embeddings
-        // For now, return the raw ML result
-        res.status(200).json({
-            status: 'success',
-            message: 'ML Inference complete',
-            data: result.data
-        });
+      if (result.status === 'error') {
+        console.log(`[ML] ❌ ML Error: ${result.message}`);
+        return res.status(400).json({ status: 'fail', message: result.message });
+      }
+
+      console.log(`[ML] 🎯 Returning ${result.faces_count} detections to frontend`);
+      res.status(200).json({
+        status: 'success',
+        message: 'ML Inference complete',
+        data: result.data
+      });
     } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+      console.error(`[ML] ❌ Error: ${error.message}`);
+      if (error.message.includes('ECONNREFUSED')) {
+        return res.status(503).json({ 
+          status: 'error', 
+          message: 'ML Server is not running. Please start it with: python ml/server.py' 
+        });
+      }
+      res.status(500).json({ status: 'error', message: error.message });
     }
   });
 };

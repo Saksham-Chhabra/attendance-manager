@@ -19,8 +19,7 @@ const RootLayout = () => {
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { name: 'ML Vision', icon: ScanEye, path: '/ml/demo' },
-    { name: 'Students', icon: Users, path: '/students' },
-    { name: 'Classes', icon: Calendar, path: '/classes' },
+    { name: 'Classes', icon: Calendar, path: '/faculty/classes' },
     { name: 'Settings', icon: Settings, path: '/settings' },
   ];
 

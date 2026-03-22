@@ -1,8 +1,8 @@
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const dotenv = require('dotenv');
-const connectDB = require('./config/db');
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
+import connectDB from './config/db.js';
 
 dotenv.config();
 
@@ -25,10 +25,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-const enrollmentRoutes = require('./routes/enrollmentRoutes');
-const mlRoutes = require('./routes/mlRoutes');
+import enrollmentRoutes from './routes/enrollmentRoutes.js';
+import mlRoutes from './routes/mlRoutes.js';
+import classRoutes from './routes/classRoutes.js';
+
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/ml', mlRoutes);
+app.use('/api/classes', classRoutes);
 
 const PORT = process.env.PORT || 5000;
 
