@@ -24,6 +24,12 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Backend is running' });
 });
 
+// Routes
+const enrollmentRoutes = require('./routes/enrollmentRoutes');
+const mlRoutes = require('./routes/mlRoutes');
+app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/ml', mlRoutes);
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

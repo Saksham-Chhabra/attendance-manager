@@ -20,6 +20,9 @@ const Home = () => {
         <Link to="/admin/dashboard" className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition">
           Admin Portal
         </Link>
+        <Link to="/ml/demo" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          ML Demo
+        </Link>
       </div>
     </div>
   );

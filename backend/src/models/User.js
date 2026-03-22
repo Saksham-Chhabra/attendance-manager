@@ -29,6 +29,23 @@ const userSchema = new mongoose.Schema({
     type: String,
     select: false,
   },
+  faceEnrollment: {
+    isEnrolled: {
+      type: Boolean,
+      default: false
+    },
+    embeddings: {
+      type: [[Number]], // Array of 512D vectors
+      default: []
+    },
+    referencePhotos: [{
+      type: String // URLs or paths to stored photos
+    }],
+    lastUpdated: {
+      type: Date,
+      default: Date.now
+    }
+  }
 }, {
   timestamps: true,
 });
