@@ -21,11 +21,13 @@ t0 = time.time()
 
 # 1a. Detector (SCRFD ONLY) - Skips gender/age/3d for speed
 det_app = FaceAnalysis(name='buffalo_l', allowed_modules=['detection'], providers=['CPUExecutionProvider'])
-det_app.prepare(ctx_id=0, det_size=(512, 512)) # Slight downscale 640->512 cuts FLOPs by 36% with no loss on 1080p
+det_app.prepare(ctx_id=0, det_size=(1024, 1024)) # Maxed out resolution tensor to catch the absolute furthest rows
 
 # INJECT ONNX THREADING INTO INSIGHTFACE DETECTOR
 if 'detection' in det_app.models:
     det_model = det_app.models['detection']
+    det_model.det_thresh = 0.35 # Drop rigid boundary threshold to catch blurred/side profiles
+    
     det_opt = ort.SessionOptions()
     det_opt.intra_op_num_threads = 4  # Cap at 4 to prevent thread thrashing
     det_opt.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL

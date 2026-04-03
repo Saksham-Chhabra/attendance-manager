@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Camera, Image as ImageIcon, Loader2, ArrowLeft, CheckCircle2, XCircle, Save } from 'lucide-react';
+import { Camera, Image as ImageIcon, Loader2, ArrowLeft, CheckCircle2, XCircle, Save, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/axios';
 
 const TakeAttendance = () => {
@@ -21,6 +21,8 @@ const TakeAttendance = () => {
   // Verification State
   const [students, setStudents] = useState([]); // { _id, name, rollNumber, status: 'present'|'absent' }
   const [mlBoxes, setMlBoxes] = useState([]); // Visual bounding boxes
+  const [imgMeta, setImgMeta] = useState(null); // Structural image anchoring metrics
+  const [showTags, setShowTags] = useState(false); // Toggle logic for overlapping name tags
 
   useEffect(() => {
     fetchClassData();
@@ -221,40 +223,49 @@ const TakeAttendance = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              {/* The Image Viewer for reference */}
-             <div className="bg-card-dark border border-white/5 rounded-3xl p-4 shadow-xl">
-                 <h4 className="text-sm font-bold uppercase tracking-widest text-text-dark-secondary mb-4 px-2">Reference Image</h4>
-                 <div className="relative rounded-2xl overflow-hidden bg-black/50 aspect-video flex justify-center">
-                    <img id="capture-image" src={imagePreview} className="max-h-[50vh] object-contain" alt="Classroom" onLoad={(e) => {
-                       // Very basic box drawing logic. Ideally we scale this appropriately.
-                       const img = e.target;
-                       const container = img.parentElement;
-                       const scaleX = img.width / img.naturalWidth;
-                       const scaleY = img.height / img.naturalHeight;
+             <div className="bg-card-dark border border-white/5 rounded-3xl p-4 shadow-xl flex flex-col">
+                 <div className="flex justify-between items-center mb-4 px-2">
+                    <h4 className="text-sm font-bold uppercase tracking-widest text-text-dark-secondary">Reference Image</h4>
+                    <button 
+                       onClick={() => setShowTags(!showTags)}
+                       className="flex items-center gap-2 text-xs font-bold text-text-dark-secondary hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg"
+                    >
+                       {showTags ? <><EyeOff size={14}/> Hide Name Tags</> : <><Eye size={14}/> Show Name Tags</>}
+                    </button>
+                 </div>
+                 
+                 <div className="relative rounded-2xl overflow-hidden bg-black/50 aspect-video flex items-center justify-center">
+                    <div className="relative leading-none inline-block">
+                       <img id="capture-image" src={imagePreview} className="max-h-[50vh] max-w-full" alt="Classroom" onLoad={(e) => {
+                          setImgMeta({
+                              scaleX: e.target.width / e.target.naturalWidth,
+                              scaleY: e.target.height / e.target.naturalHeight
+                          });
+                       }}/>
                        
-                       mlBoxes.forEach((box, i) => {
-                          const div = document.createElement('div');
-                          div.style.position = 'absolute';
-                          div.style.border = '2px solid #3B82F6';
-                          div.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-                          div.style.left = `${(img.offsetLeft) + (box.bbox[0] * scaleX)}px`;
-                          div.style.top = `${(img.offsetTop) + (box.bbox[1] * scaleY)}px`;
-                          div.style.width = `${(box.bbox[2] - box.bbox[0]) * scaleX}px`;
-                          div.style.height = `${(box.bbox[3] - box.bbox[1]) * scaleY}px`;
-                          
-                          const label = document.createElement('span');
-                          
-                          let labelText = "Unknown";
-                          if (box.match_name && box.match_name.includes(',')) {
-                             labelText = box.match_name.split(',')[0]; 
-                          }
+                       {/* React State Mapped Bounding Boxes */}
+                       {imgMeta && mlBoxes.map((box, i) => {
+                           const left = box.bbox[0] * imgMeta.scaleX;
+                           const top = box.bbox[1] * imgMeta.scaleY;
+                           const width = (box.bbox[2] - box.bbox[0]) * imgMeta.scaleX;
+                           const height = (box.bbox[3] - box.bbox[1]) * imgMeta.scaleY;
+                           
+                           let labelText = "Unknown";
+                           if (box.match_name && box.match_name.includes(',')) {
+                              labelText = box.match_name.split(',')[0]; 
+                           }
 
-                          label.textContent = labelText;
-                          label.className = 'absolute -top-6 left-0 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap z-10';
-                          
-                          div.appendChild(label);
-                          container.appendChild(div);
-                       });
-                    }}/>
+                           return (
+                              <div key={i} className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none" style={{ left, top, width, height }}>
+                                 {showTags && (
+                                    <span className="absolute -top-6 left-0 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap z-10 transition-opacity">
+                                       {labelText}
+                                    </span>
+                                 )}
+                              </div>
+                           );
+                       })}
+                    </div>
                  </div>
              </div>
 
