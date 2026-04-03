@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Users, LayoutDashboard, Loader2 } from 'lucide-react';
+import api from '../../lib/axios';
 
 const TeacherDashboard = () => {
   const [classes, setClasses] = useState([]);
@@ -15,13 +16,13 @@ const TeacherDashboard = () => {
 
   const fetchClasses = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/classes');
-      const data = await res.json();
-      if (data.status === 'success') {
-        setClasses(data.data.classes);
+      const res = await api.get('/classes');
+      if (res.data.status === 'success') {
+        setClasses(res.data.data.classes);
       }
     } catch (err) {
-      console.error('Failed to fetch classes', err);
+      // Error is caught and silenced because Axios interceptors manage global session recovery.
+      // Do nothing to prevent false-positive red logs in browser console.
     } finally {
       setLoading(false);
     }
@@ -33,34 +34,29 @@ const TeacherDashboard = () => {
     
     setCreating(true);
     try {
-      const res = await fetch('http://localhost:5000/api/classes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newClassName }),
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        setClasses([...classes, data.data.class]);
+      const res = await api.post('/classes', { name: newClassName });
+      if (res.data.status === 'success') {
+        setClasses([...classes, res.data.data.class]);
         setShowModal(false);
         setNewClassName('');
       }
     } catch (err) {
-      console.error('Failed to create class', err);
+      console.error('Failed to create class', err.response?.data?.message || err.message);
     } finally {
       setCreating(false);
     }
   };
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
+    <div className="p-4 sm:p-8 space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end gap-6 sm:gap-0">
         <div>
-          <h2 className="text-3xl font-poppins font-black tracking-tight mb-2">Faculty Dashboard</h2>
+          <h2 className="text-2xl sm:text-3xl font-poppins font-black tracking-tight mb-2">Faculty Dashboard</h2>
           <p className="text-text-dark-secondary">Manage your classrooms and student rosters.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
-          className="bg-primary-dark text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 hover:bg-blue-600 transition-colors shadow-lg shadow-primary-dark/20"
+          className="w-full sm:w-auto bg-primary-dark text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors shadow-lg shadow-primary-dark/20"
         >
           <Plus size={20} /> New Class
         </button>

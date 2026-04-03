@@ -9,22 +9,51 @@ import {
   X, 
   Bell, 
   User,
-  ScanEye
+  ShieldCheck,
+  LogOut
 } from 'lucide-react';
+import useAuthStore from '../store/useAuthStore';
 
 const RootLayout = () => {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuthStore();
 
-  const navItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { name: 'ML Vision', icon: ScanEye, path: '/ml/demo' },
-    { name: 'Classes', icon: Calendar, path: '/faculty/classes' },
-    { name: 'Settings', icon: Settings, path: '/settings' },
-  ];
+  let navItems = [];
+  if (user?.role === 'admin') {
+    navItems = [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
+      { name: 'Settings', icon: Settings, path: '/settings' },
+    ];
+  } else if (user?.role === 'teacher') {
+    navItems = [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/faculty/dashboard' },
+      { name: 'Settings', icon: Settings, path: '/settings' },
+    ];
+  } else {
+    navItems = [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
+      { name: 'Settings', icon: Settings, path: '/settings' },
+    ];
+  }
+
+  const getGreeting = () => {
+     if (!user) return '';
+     if (user.role === 'admin') return `Superadmin ${user.name.split(' ')[0]}`;
+     if (user.role === 'teacher') return `Prof. ${user.name.split(' ')[0]}`;
+     return user.name;
+  };
 
   return (
     <div className="min-h-screen bg-bg-dark text-text-dark font-sans flex overflow-hidden">
+      {/* MOBILE SIDEBAR OVERLAY */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-72 bg-card-dark border-r border-white/5 
@@ -52,6 +81,7 @@ const RootLayout = () => {
                 <Link
                   key={item.name}
                   to={item.path}
+                  onClick={() => setSidebarOpen(false)}
                   className={`
                     flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300
                     ${active 
@@ -67,17 +97,25 @@ const RootLayout = () => {
           </nav>
 
           {/* User Profile Mini */}
-          <div className="mt-auto pt-6 border-t border-white/5">
-             <div className="flex items-center gap-4 p-2">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-dark to-purple-500 p-0.5">
-                   <div className="w-full h-full rounded-full bg-card-dark flex items-center justify-center">
-                      <User size={18} className="text-text-dark-secondary" />
+          <div className="mt-auto pt-6 border-t border-white/5 space-y-4">
+             <div className="flex items-center justify-between p-2">
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-dark to-purple-500 p-0.5">
+                      <div className="w-full h-full rounded-full bg-card-dark flex items-center justify-center">
+                         <User size={18} className="text-text-dark-secondary" />
+                      </div>
+                   </div>
+                   <div>
+                      <p className="text-xs font-black text-white">{getGreeting()}</p>
+                      <p className="text-[9px] text-text-dark-secondary font-bold uppercase tracking-widest">{user?.role}</p>
                    </div>
                 </div>
-                <div>
-                   <p className="text-xs font-black text-white">Prof. Saksham</p>
-                   <p className="text-[9px] text-text-dark-secondary font-bold uppercase tracking-widest">Administrator</p>
-                </div>
+                <button 
+                  onClick={() => logout()}
+                  className="w-8 h-8 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center border border-red-500/20"
+                >
+                  <LogOut size={14} />
+                </button>
              </div>
           </div>
         </div>

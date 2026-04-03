@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { Camera, RefreshCw, CheckCircle, XCircle, Loader2, Upload } from 'lucide-react';
+import api from '../../lib/axios';
 
 const FaceDemo = () => {
   const webcamRef = useRef(null);
@@ -44,12 +45,10 @@ const FaceDemo = () => {
       const formData = new FormData();
       formData.append('photo', blob, 'verify.jpg');
 
-      const response = await fetch('http://localhost:5000/api/ml/verify', {
-        method: 'POST',
-        body: formData,
+      const response = await api.post('/ml/verify', formData, {
+         headers: { 'Content-Type': 'multipart/form-data' }
       });
-
-      const data = await response.json();
+      const data = response.data;
 
       if (data.status === 'success' && data.data && data.data.length > 0) {
         setResult({

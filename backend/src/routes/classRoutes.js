@@ -4,14 +4,21 @@ import {
   createClass, 
   getClasses, 
   getClassById, 
+  deleteClass,
+  generateJoinCode,
   addStudentToClass,
+  removeStudentFromClass,
   getClassAnalytics,
-  submitClassAttendance
+  getStudentClassAnalytics,
+  submitClassAttendance,
+  joinClass
 } from '../controllers/classController.js';
 import { protect, restrictTo } from '../middleware/authMiddleware.js';
 
 // Protect all class routes
 router.use(protect);
+
+router.post('/join', restrictTo('student'), joinClass);
 
 // Routes for classes
 router.route('/')
@@ -19,15 +26,24 @@ router.route('/')
   .get(getClasses);
 
 router.route('/:id')
-  .get(getClassById);
+  .get(getClassById)
+  .delete(restrictTo('teacher', 'admin'), deleteClass);
+
+router.post('/:id/generate-code', restrictTo('teacher', 'admin'), generateJoinCode);
 
 router.route('/:id/analytics')
-  .get(getClassAnalytics);
+  .get(restrictTo('teacher', 'admin'), getClassAnalytics);
+
+router.route('/:id/student-analytics')
+  .get(restrictTo('student'), getStudentClassAnalytics);
 
 router.route('/:id/attendance')
   .post(restrictTo('teacher', 'admin'), submitClassAttendance);
 
 router.route('/:id/students')
   .post(restrictTo('teacher', 'admin'), addStudentToClass);
+
+router.route('/:id/students/:studentId')
+  .delete(restrictTo('teacher', 'admin'), removeStudentFromClass);
 
 export default router;

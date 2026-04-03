@@ -17,6 +17,12 @@ const classSchema = new mongoose.Schema({
       ref: 'User',
     }
   ],
+  joinCode: {
+    type: String,
+    unique: true,
+    required: true,
+    default: () => Math.random().toString(36).substring(2, 8).toUpperCase()
+  }
 }, {
   timestamps: true,
 });

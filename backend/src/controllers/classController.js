@@ -1,5 +1,7 @@
 import Class from '../models/Class.js';
 import User from '../models/User.js';
+import AttendanceSession from '../models/AttendanceSession.js';
+import AttendanceRecord from '../models/AttendanceRecord.js';
 
 /**
  * @desc    Create a new class
@@ -35,16 +37,14 @@ export const createClass = async (req, res) => {
  */
 export const getClasses = async (req, res) => {
   try {
-    let query;
+    let query = {};
     if (req.user.role === 'teacher') {
-      query = { teacher: req.user.id };
+      query.teacher = req.user._id;
     } else if (req.user.role === 'student') {
-      query = { students: req.user.id };
-    } else {
-      query = {}; // admin sees all
+      query.students = req.user._id;
     }
 
-    const classes = await Class.find(query).populate('teacher', 'name email');
+    const classes = await Class.find(query).populate('teacher', 'name');
 
     res.status(200).json({
       status: 'success',
@@ -63,20 +63,107 @@ export const getClasses = async (req, res) => {
  */
 export const getClassById = async (req, res) => {
   try {
-    const classData = await Class.findById(req.params.id)
-      .populate('teacher', 'name email')
-      .populate('students', 'name email rollNumber');
+    const cls = await Class.findById(req.params.id).populate('students', 'name email rollNumber faceEnrollment role');
+    if (!cls) return res.status(404).json({ status: 'fail', message: 'Class not found' });
+    res.status(200).json({ status: 'success', data: { class: cls } });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
+  }
+};
+
+/**
+ * @desc    Delete a class completely (cascading deletes for orphans)
+ * @route   DELETE /api/classes/:id
+ * @access  Private (Teacher/Admin)
+ */
+export const deleteClass = async (req, res) => {
+  try {
+    const classId = req.params.id;
+    const classData = await Class.findById(classId);
 
     if (!classData) {
       return res.status(404).json({ status: 'fail', message: 'Class not found' });
     }
 
-    res.status(200).json({
-      status: 'success',
-      data: { class: classData }
-    });
+    if (classData.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'fail', message: 'Not authorized to delete this class' });
+    }
+
+    // Identify sessions to orchestrate cascade deletes
+    const sessions = await AttendanceSession.find({ class: classId });
+    const sessionIds = sessions.map(s => s._id);
+
+    // Cascade 1: Wipe all records from those sessions
+    if (sessionIds.length > 0) {
+       await AttendanceRecord.deleteMany({ session: { $in: sessionIds } });
+    }
+    
+    // Cascade 2: Wipe all matching Sessions
+    await AttendanceSession.deleteMany({ class: classId });
+
+    // Cascade 3: Delete the Core Class document
+    await Class.findByIdAndDelete(classId);
+
+    res.status(200).json({ status: 'success', message: 'Classroom globally deleted alongside all associated analytics' });
   } catch (error) {
-    res.status(400).json({ status: 'error', message: error.message });
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+/**
+ * @desc    Regenerate Class Join string
+ * @route   POST /api/classes/:id/generate-code
+ * @access  Private (Teacher/Admin)
+ */
+export const generateJoinCode = async (req, res) => {
+  try {
+    const classData = await Class.findById(req.params.id);
+    
+    if (!classData) return res.status(404).json({ status: 'fail', message: 'Class not found' });
+
+    if (classData.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'fail', message: 'Not authorized' });
+    }
+
+    // Force cryptographic-like pseudorandom collision resolution
+    let newCode;
+    let isUnique = false;
+    while (!isUnique) {
+       newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+       const existing = await Class.findOne({ joinCode: newCode });
+       if (!existing) isUnique = true;
+    }
+
+    classData.joinCode = newCode;
+    await classData.save();
+
+    res.status(200).json({ status: 'success', data: { joinCode: newCode } });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+export const joinClass = async (req, res) => {
+  try {
+    const { joinCode } = req.body;
+    if (!joinCode) return res.status(400).json({ status: 'fail', message: 'Please provide a joining code' });
+
+    const cls = await Class.findOne({ joinCode: joinCode.toUpperCase() });
+    if (!cls) return res.status(404).json({ status: 'fail', message: 'Invalid join code' });
+
+    // Check if student is already in the class
+    if (cls.students.some(studentId => studentId.equals(req.user._id))) {
+      return res.status(400).json({ status: 'fail', message: 'You are already enrolled in this class' });
+    }
+
+    cls.students.push(req.user._id);
+    await cls.save();
+    
+    await cls.populate('teacher', 'name');
+
+    res.status(200).json({ status: 'success', data: { class: cls } });
+  } catch (error) {
+    res.status(400).json({ status: 'fail', message: error.message });
   }
 };
 
@@ -144,8 +231,30 @@ export const addStudentToClass = async (req, res) => {
   }
 };
 
-import AttendanceSession from '../models/AttendanceSession.js';
-import AttendanceRecord from '../models/AttendanceRecord.js';
+/**
+ * @desc    Remove student from class
+ * @route   DELETE /api/classes/:id/students/:studentId
+ * @access  Private (Teacher/Admin)
+ */
+export const removeStudentFromClass = async (req, res) => {
+  try {
+    const { id: classId, studentId } = req.params;
+
+    const classData = await Class.findById(classId);
+    if (!classData) return res.status(404).json({ status: 'fail', message: 'Class not found' });
+
+    if (classData.teacher.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'fail', message: 'Not authorized' });
+    }
+
+    classData.students = classData.students.filter(student => !student.equals(studentId));
+    await classData.save();
+
+    res.status(200).json({ status: 'success', message: 'Student removed from class' });
+  } catch (error) {
+    res.status(400).json({ status: 'error', message: error.message });
+  }
+};
 
 /**
  * @desc    Get class analytics (Recharts payload)
@@ -159,6 +268,9 @@ export const getClassAnalytics = async (req, res) => {
     
     if (!classData) return res.status(404).json({ status: 'fail', message: 'Class not found' });
 
+    // Filter out any orphaned document IDs that failed population (i.e deleted accounts)
+    const activeStudents = classData.students.filter(s => s != null);
+
     // 1. Fetch all sessions for this class (chronological)
     const sessions = await AttendanceSession.find({ class: classId }).sort('startTime');
     const totalSessions = sessions.length;
@@ -169,8 +281,8 @@ export const getClassAnalytics = async (req, res) => {
         data: {
           metrics: { totalSessions: 0, averageAttendance: 0 },
           timeline: [],
-          studentStats: classData.students.map(s => ({
-             _id: s._id, name: s.name, rollNumber: s.rollNumber, attendanceRate: 0, attended: 0, total: 0
+          studentStats: activeStudents.map(s => ({
+             _id: s._id, name: s.name, rollNumber: s.rollNumber, email: s.email, attendanceRate: 0, attended: 0, total: 0
           }))
         }
       });
@@ -206,23 +318,21 @@ export const getClassAnalytics = async (req, res) => {
     const averageAttendance = totalRecordsGlobal > 0 ? Math.round((totalPresentsGlobal / totalRecordsGlobal) * 100) : 0;
 
     // 4. Build Student Stats (Individual % across all sessions)
-    const studentStats = classData.students.map(student => {
+    const studentStats = activeStudents.map(student => {
        const studentRecords = records.filter(r => r.student.toString() === student._id.toString());
        const attended = studentRecords.filter(r => r.status === 'present').length;
-       const total = studentRecords.length; // Can also just use totalSessions if we assume records are forcefully generated
-
-       const absTotal = total > 0 ? total : totalSessions; // Fallback if no records exist
-       const rate = absTotal > 0 ? Math.round((attended / absTotal) * 100) : 0;
+       const rate = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
 
        return {
          _id: student._id,
          name: student.name,
+         email: student.email,
          rollNumber: student.rollNumber,
          attendanceRate: rate,
          attended,
-         total: absTotal
+         total: totalSessions
        };
-    }).sort((a, b) => b.attendanceRate - a.attendanceRate); // Sort highest attendance first
+    }).sort((a, b) => b.attendanceRate - a.attendanceRate);
 
     res.status(200).json({
       status: 'success',
@@ -230,6 +340,76 @@ export const getClassAnalytics = async (req, res) => {
         metrics: { totalSessions, averageAttendance },
         timeline,
         studentStats
+      }
+    });
+
+  } catch (error) {
+    res.status(400).json({ status: 'error', message: error.message });
+  }
+};
+
+/**
+ * @desc    Get isolated class analytics for a specific student
+ * @route   GET /api/classes/:id/student-analytics
+ * @access  Private (Student)
+ */
+export const getStudentClassAnalytics = async (req, res) => {
+  try {
+    const classId = req.params.id;
+    const studentId = req.user._id;
+
+    const classData = await Class.findById(classId).populate('teacher', 'name');
+    if (!classData) return res.status(404).json({ status: 'fail', message: 'Class not found' });
+
+    // Validate enrollment boundary
+    if (!classData.students.includes(studentId)) {
+       return res.status(403).json({ status: 'fail', message: 'You are not enrolled in this classroom computing scope.'});
+    }
+
+    // 1. Fetch chronologically sorted sessions
+    const sessions = await AttendanceSession.find({ class: classId }).sort('-startTime');
+    const totalSessions = sessions.length;
+
+    // 2. Fetch specific records tied *only* to this student across these sessions
+    const sessionIds = sessions.map(s => s._id);
+    const records = await AttendanceRecord.find({ 
+       session: { $in: sessionIds },
+       student: studentId 
+    });
+
+    // 3. Assemble mathematical layout
+    let attended = 0;
+    const history = sessions.map(sess => {
+       const record = records.find(r => r.session.toString() === sess._id.toString());
+       const status = record ? record.status : 'absent'; // Assume absent if no record exists for a locked session
+       
+       if (status === 'present') attended++;
+
+       return {
+          sessionId: sess._id,
+          date: sess.startTime,
+          method: sess.method,
+          status: status
+       };
+    });
+
+    const rate = totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        classDetails: {
+           id: classData._id,
+           name: classData.name,
+           teacher: classData.teacher?.name || 'Faculty',
+           joinCode: classData.joinCode
+        },
+        metrics: {
+           totalSessions,
+           attendedSessions: attended,
+           attendanceRate: rate
+        },
+        history // Most recent first (descending mapped above)
       }
     });
 

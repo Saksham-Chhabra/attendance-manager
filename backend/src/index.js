@@ -25,13 +25,17 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
+import authRoutes from './routes/authRoutes.js';
 import enrollmentRoutes from './routes/enrollmentRoutes.js';
 import mlRoutes from './routes/mlRoutes.js';
 import classRoutes from './routes/classRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
+app.use('/api/auth', authRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/ml', mlRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -5,16 +5,6 @@ import User from '../models/User.js';
  * Protect Routes - Check if user is logged in
  */
 export const protect = async (req, res, next) => {
-  // DEV BYPASS FOR FACULTY UI TESTING
-  if (true) {
-    let dummyTeacher = await User.findOne({ email: 'prof@test.com' });
-    if (!dummyTeacher) {
-      dummyTeacher = await User.create({ name: 'Prof. Saksham', email: 'prof@test.com', password: 'password123', role: 'teacher' });
-    }
-    req.user = dummyTeacher;
-    return next();
-  }
-
   let token;
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {

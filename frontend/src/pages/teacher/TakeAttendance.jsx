@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Camera, Image as ImageIcon, Loader2, ArrowLeft, CheckCircle2, XCircle, Save } from 'lucide-react';
+import api from '../../lib/axios';
 
 const TakeAttendance = () => {
   const { id: classId } = useParams();
@@ -27,12 +28,11 @@ const TakeAttendance = () => {
 
   const fetchClassData = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/classes/${classId}`);
-      const data = await res.json();
-      if (data.status === 'success') {
-        setCls(data.data.class);
+      const res = await api.get(`/classes/${classId}`);
+      if (res.data.status === 'success') {
+        setCls(res.data.data.class);
         // Initialize verification roster (default all to absent)
-        const initialRoster = data.data.class.students.map(s => ({
+        const initialRoster = res.data.data.class.students.map(s => ({
           ...s,
           status: 'absent'
         }));
@@ -63,20 +63,16 @@ const TakeAttendance = () => {
     formData.append('photo', selectedFile);
 
     try {
-      const res = await fetch('http://localhost:5000/api/ml/verify', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: formData
+      const res = await api.post('/ml/verify', formData, {
+         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const data = await res.json();
+      const data = res.data;
 
       if (data.status === 'success') {
-        // match_name format: "First Last,23BCS123"
-        const detectedRolls = data.data.map(d => {
-            if (d.match_name && d.match_name !== 'Unknown' && d.match_name.includes(',')) {
-                return d.match_name.split(',')[1].trim();
+        // Transform ML identifiers (filename without extensions) into a uniform array
+        const detectedIdentifiers = data.data.map(d => {
+            if (d.match_name && d.match_name !== 'Unknown') {
+               return d.match_name.toLowerCase();
             }
             return null;
         }).filter(Boolean);
@@ -84,10 +80,21 @@ const TakeAttendance = () => {
         setMlBoxes(data.data);
         
         // Auto-mark present based on ML predictions
-        setStudents(prev => prev.map(student => ({
-          ...student,
-          status: detectedRolls.includes(student.rollNumber) ? 'present' : 'absent'
-        })));
+        setStudents(prev => prev.map(student => {
+          // Check if the ML bounding box label matches either the student's Registration Roll No OR their Name
+          const rollMatch = student.rollNumber ? student.rollNumber.toLowerCase() : '';
+          const nameMatch = student.name ? student.name.toLowerCase() : '';
+          
+          const isPresent = detectedIdentifiers.some(identifier => 
+             (rollMatch && identifier.includes(rollMatch)) || 
+             (nameMatch && identifier.includes(nameMatch))
+          );
+
+          return {
+            ...student,
+            status: isPresent ? 'present' : 'absent'
+          };
+        }));
         
         setStep('verify');
       } else {
@@ -118,15 +125,11 @@ const TakeAttendance = () => {
         status: s.status
       }));
 
-      const res = await fetch(`http://localhost:5000/api/classes/${classId}/attendance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ records, method: 'face_detection' })
+      const res = await api.post(`/classes/${classId}/attendance`, { 
+        records, 
+        method: 'face_detection' 
       });
-      const data = await res.json();
+      const data = res.data;
 
       if (data.status === 'success') {
         navigate(`/faculty/class/${classId}`); // Return to dashboard, graphs will be updated
@@ -143,7 +146,7 @@ const TakeAttendance = () => {
   if (!cls) return <div className="p-8 text-white">Class not found</div>;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-4 sm:space-y-8 animate-in fade-in">
       <Link to={`/faculty/class/${classId}`} className="inline-flex items-center gap-2 text-text-dark-secondary hover:text-white transition-colors text-sm font-bold uppercase tracking-widest">
         <ArrowLeft size={16} /> Cancel Session
       </Link>
