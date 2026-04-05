@@ -40,13 +40,28 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+    trainingStatus: {
+      type: String,
+      enum: ['pending', 'training', 'completed', 'failed'],
+      default: 'pending'
+    },
+    photoCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 10
+    },
     embeddings: {
       type: [[Number]], // Array of 512D vectors
       default: []
     },
     referencePhotos: [{
-      type: String // URLs or paths to stored photos
+      type: String // File paths to stored photos
     }],
+    trainingError: {
+      type: String,
+      default: null
+    },
     lastUpdated: {
       type: Date,
       default: Date.now

@@ -203,6 +203,73 @@ def analyze():
         "inference_time": round(time.time() - t_start, 2)
     })
 
+@app.route('/extract-embedding', methods=['POST'])
+def extract_embedding():
+    """
+    Extract a single face embedding from a photo.
+    Used for student face enrollment training.
+    """
+    if 'photo' not in request.files:
+        return jsonify({"status": "error", "message": "No photo uploaded"}), 400
+
+    t_start = time.time()
+    file = request.files['photo']
+    
+    # Read image directly from memory
+    img_bytes = file.read()
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return jsonify({"status": "error", "message": "Could not read image"}), 400
+
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Scale down if too large
+    scale = 1.0
+    max_dim = 1920
+    h, w = img_rgb.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        img_rgb = cv2.resize(img_rgb, (int(w * scale), int(h * scale)))
+    
+    try:
+        with inference_lock:
+            # Detect faces
+            faces = det_app.get(img_rgb)
+            
+            if not faces:
+                return jsonify({
+                    "status": "error",
+                    "message": "No face detected in the image. Please upload a clear photo of your face."
+                }), 400
+            
+            if len(faces) > 1:
+                # Use the largest face
+                faces = sorted(faces, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]), reverse=True)
+                face = faces[0]
+                print(f"[Extract] Multiple faces detected. Using largest face.")
+            else:
+                face = faces[0]
+            
+            # Extract embedding from face
+            embedding = get_batched_embeddings(img_rgb, [face])[0]
+        
+        processing_time = time.time() - t_start
+        
+        return jsonify({
+            "status": "success",
+            "embedding": embedding.tolist(),
+            "face_detected": True,
+            "processing_time": round(processing_time, 2)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error processing image: {str(e)}"
+        }), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok", "model": "buffalo_l (batched)", "known_faces": len(known_names)})

@@ -8,9 +8,11 @@ import Register from './pages/auth/Register';
 import Home from './pages/Home';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentClassDetail from './pages/student/ClassDetail';
+import FaceRegistration from './pages/student/FaceRegistration';
 import TeacherDashboard from './pages/teacher/Dashboard';
 import TeacherClassDetail from './pages/teacher/ClassDetail';
 import TakeAttendance from './pages/teacher/TakeAttendance';
+import AnalyticsDashboard from './pages/teacher/AnalyticsDashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import FaceDemo from './pages/ml/FaceDemo';
 import Settings from './pages/Settings';
@@ -39,6 +41,7 @@ function App() {
           
           <Route element={<RoleProtectedRoute allowedRoles={['student']} />}>
             <Route path="student/dashboard" element={<StudentDashboard />} />
+            <Route path="student/face-registration" element={<FaceRegistration />} />
             <Route path="student/class/:id" element={<StudentClassDetail />} />
           </Route>
 
@@ -46,6 +49,7 @@ function App() {
             <Route path="faculty/dashboard" element={<TeacherDashboard />} />
             <Route path="faculty/class/:id" element={<TeacherClassDetail />} />
             <Route path="faculty/class/:id/attendance" element={<TakeAttendance />} />
+            <Route path="faculty/class/:id/analytics" element={<AnalyticsDashboard />} />
           </Route>
 
           <Route element={<RoleProtectedRoute allowedRoles={['admin']} />}>

@@ -1,6 +1,9 @@
 node_modules/
 .env
 ml_legacy/
+ml-attendance/
+.venv/
+venv/
 tmp_if/
 ml/known_faces1/
 ml/test*.jpg
