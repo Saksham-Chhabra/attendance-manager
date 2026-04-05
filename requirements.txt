@@ -1,0 +1,30 @@
+# Python Dependencies for ML-Attendance-Manager
+# Install with: pip install -r requirements.txt
+
+# Computer Vision & Face Detection
+insightface>=0.7.3
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+
+# ONNX Runtime (GPU inference acceleration)
+onnxruntime>=1.16.0
+
+# Machine Learning & Data Processing
+numpy>=1.24.0
+scikit-learn>=1.3.0
+pillow>=10.0.0
+
+# Web Framework & API
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Data Handling
+pandas>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Optional: For Jupyter Notebook support (if using notebooks)
+jupyter>=1.0.0
+ipython>=8.0.0
