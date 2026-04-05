@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Users, LayoutDashboard, Loader2, LogIn } from 'lucide-react';
+import { Plus, Users, LayoutDashboard, Loader2, LogIn, Camera } from 'lucide-react';
 import api from '../../lib/axios';
 
 const StudentDashboard = () => {
@@ -50,17 +50,25 @@ const StudentDashboard = () => {
 
   return (
     <div className="p-4 sm:p-8 space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end gap-6 sm:gap-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-end gap-4 sm:gap-0">
         <div>
           <h2 className="text-2xl sm:text-3xl font-poppins font-black tracking-tight mb-2">Student Dashboard</h2>
           <p className="text-text-dark-secondary">View your enrolled classes and track your attendance.</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="w-full sm:w-auto bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
-        >
-          <LogIn size={20} /> Join Class
-        </button>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <Link
+            to="/student/face-registration"
+            className="flex-1 sm:flex-none bg-blue-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
+          >
+            <Camera size={20} /> Register Face
+          </Link>
+          <button 
+            onClick={() => setShowModal(true)}
+            className="flex-1 sm:flex-none bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+          >
+            <LogIn size={20} /> Join Class
+          </button>
+        </div>
       </div>
 
       {loading ? (

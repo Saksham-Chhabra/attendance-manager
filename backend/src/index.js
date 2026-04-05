@@ -30,12 +30,14 @@ import enrollmentRoutes from './routes/enrollmentRoutes.js';
 import mlRoutes from './routes/mlRoutes.js';
 import classRoutes from './routes/classRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/ml', mlRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 const PORT = process.env.PORT || 5000;
 
