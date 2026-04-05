@@ -121,11 +121,55 @@ const TakeAttendance = () => {
 
   const submitFinalAttendance = async () => {
     try {
-      // Format payload for backend
-      const records = students.map(s => ({
-        studentId: s._id,
-        status: s.status
-      }));
+      // Format payload for backend with face position data for friendship analysis
+      const records = students.map(s => {
+        const record = {
+          studentId: s._id,
+          status: s.status
+        };
+        
+        // Include face position data from ML detection if available
+        // This is used for seating-based friendship analysis
+        if (s.status === 'present' && mlBoxes.length > 0) {
+          const matchingBox = mlBoxes.find(box => {
+            // Try to match by roll number or name
+            const rollMatch = s.rollNumber ? s.rollNumber.toLowerCase() : '';
+            const nameMatch = s.name ? s.name.toLowerCase() : '';
+            const labelLower = (box.match_name || '').toLowerCase();
+            
+            return (rollMatch && labelLower.includes(rollMatch)) || 
+                   (nameMatch && labelLower.includes(nameMatch));
+          });
+          
+          if (matchingBox && matchingBox.bbox) {
+            // Extract face position from bounding box
+            const [left, top, right, bottom] = matchingBox.bbox;
+            const width = right - left;
+            const height = bottom - top;
+            const x = left + width / 2;  // Center X
+            const y = top + height / 2;  // Center Y
+            
+            record.facePosition = {
+              x: parseFloat(x.toFixed(1)),
+              y: parseFloat(y.toFixed(1)),
+              width: parseFloat(width.toFixed(1)),
+              height: parseFloat(height.toFixed(1)),
+              left: parseFloat(left.toFixed(1)),
+              top: parseFloat(top.toFixed(1)),
+              right: parseFloat(right.toFixed(1)),
+              bottom: parseFloat(bottom.toFixed(1)),
+              confidence: matchingBox.confidence || 0.95
+            };
+            
+            // Optional: Store image URL if available
+            if (imagePreview) {
+              record.imageUrl = imagePreview;
+            }
+          }
+        }
+        
+        return record;
+      });
 
       const res = await api.post(`/classes/${classId}/attendance`, { 
         records, 
@@ -273,7 +317,12 @@ const TakeAttendance = () => {
              <div className="bg-card-dark border border-white/5 rounded-3xl p-6 shadow-xl flex flex-col h-[60vh]">
                 <h4 className="text-sm font-bold uppercase tracking-widest text-text-dark-secondary mb-4 flex justify-between items-end">
                    <span>Verification Roster</span>
-                   <button onClick={() => setStudents(prev => prev.map(s => ({...s, status: 'present'})))} className="text-blue-400 hover:text-white capitalize text-xs bg-blue-500/10 px-2 py-1 rounded">Mark All Present</button>
+                   <button 
+                      onClick={() => setStudents(prev => prev.map(s => ({...s, status: 'present'})))} 
+                      className="text-blue-400 hover:text-white capitalize text-xs bg-blue-500 bg-opacity-10 px-2 py-1 rounded"
+                   >
+                      Mark All Present
+                   </button>
                 </h4>
                 
                 <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
@@ -283,8 +332,8 @@ const TakeAttendance = () => {
                        onClick={() => toggleStatus(student._id)}
                        className={`flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all border ${
                          student.status === 'present' 
-                           ? 'bg-emerald-500/10 border-emerald-500/30' 
-                           : 'bg-white/5 border-white/5 hover:bg-white/10'
+                           ? 'bg-emerald-500 bg-opacity-10 border-emerald-500 border-opacity-30' 
+                           : 'bg-white bg-opacity-5 border-white border-opacity-5 hover:bg-opacity-10'
                        }`}
                      >
                         <div className="flex flex-col">
@@ -301,13 +350,33 @@ const TakeAttendance = () => {
                    ))}
                 </div>
 
-                <div className="pt-6 mt-4 border-t border-white/10">
-                   <button 
-                     onClick={submitFinalAttendance}
-                     className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex justify-center items-center gap-2"
-                   >
-                     <Save size={20} /> Submit Final Attendance
-                   </button>
+                <div className="pt-6 mt-4 border-t border-white border-opacity-10">
+                   {(() => {
+                     const presentCount = students.filter(s => s.status === 'present').length;
+                     return (
+                       <>
+                         <div className="mb-4 p-4 bg-white bg-opacity-5 border border-white border-opacity-10 rounded-lg">
+                           <p className="text-sm font-bold text-white mb-2">Attendance Summary</p>
+                           <p className="text-xs text-text-dark-secondary">
+                             <span className="text-emerald-400 font-bold">{presentCount}</span> Present · 
+                             <span className="text-red-400 font-bold ml-1">{students.length - presentCount}</span> Absent
+                           </p>
+                           {presentCount === 0 && students.length > 0 && (
+                             <p className="text-xs text-yellow-400 mt-2">⚠ No students marked as present. Please upload an image or manually select students.</p>
+                           )}
+                         </div>
+                         <button 
+                           onClick={submitFinalAttendance}
+                           disabled={students.length === 0}
+                           className={`w-full text-white font-black py-4 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 disabled:opacity-50 ${
+                             presentCount > 0 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-yellow-600 hover:bg-yellow-700'
+                           }`}
+                         >
+                           <Save size={20} /> {presentCount > 0 ? 'Submit Attendance' : 'Submit (All Absent)'}
+                         </button>
+                       </>
+                     );
+                   })()}
                 </div>
              </div>
           </div>

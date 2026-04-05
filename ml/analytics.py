@@ -392,3 +392,382 @@ class AttendanceAnalytics:
             'overall_attendance_rate': float(overall_attendance),
             'session_stats': session_stats
         }
+
+    # ===================== ADVANCED FEATURES =====================
+
+    def analyze_student_friendships(self, attendance_data):
+        """
+        Friendship/Closeness Analysis: Identifies students who sit close together
+        Logic: Students with consistent close seating positions are likely friends
+        Uses face position data from classroom photos for spatial analysis
+        Returns: Network of student pairs with seating proximity scores
+        """
+        if not attendance_data or len(attendance_data) == 0:
+            return {'friendships': [], 'networks': []}
+        
+        # attendance_data format: List of {
+        #   student_id, session_date, status, 
+        #   facePosition: { x, y, width, height, left, top, right, bottom, confidence }
+        # }
+        
+        # Filter only present students (absent students have no face position)
+        present_records = [a for a in attendance_data if a.get('status') == 'present' and a.get('facePosition')]
+        
+        if len(present_records) == 0:
+            return {'friendships': [], 'networks': []}
+        
+        # Group by session to analyze seating in each photo
+        sessions = {}
+        for record in present_records:
+            session_id = str(record.get('session_id', 'default'))
+            if session_id not in sessions:
+                sessions[session_id] = []
+            sessions[session_id].append(record)
+        
+        # Calculate pairwise distances within each session
+        pairwise_distances = {}  # (student1, student2) -> list of distances
+        
+        for session_id, session_records in sessions.items():
+            # For each pair of students in this session
+            for i, record1 in enumerate(session_records):
+                for record2 in session_records[i+1:]:
+                    student1_id = str(record1['student_id'])
+                    student2_id = str(record2['student_id'])
+                    
+                    # Skip if same student
+                    if student1_id == student2_id:
+                        continue
+                    
+                    # Calculate Euclidean distance between face centers
+                    pos1 = record1.get('facePosition', {})
+                    pos2 = record2.get('facePosition', {})
+                    
+                    if not pos1 or not pos2:
+                        continue
+                    
+                    x1, y1 = pos1.get('x', 0), pos1.get('y', 0)
+                    x2, y2 = pos2.get('x', 0), pos2.get('y', 0)
+                    
+                    # Euclidean distance
+                    distance = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+                    
+                    # Store in consistent key (lower ID first)
+                    key = tuple(sorted([student1_id, student2_id]))
+                    if key not in pairwise_distances:
+                        pairwise_distances[key] = []
+                    pairwise_distances[key].append(distance)
+        
+        # Calculate friendship strength based on seating proximity
+        friendships = []
+        MAX_DISTANCE = 300  # Maximum pixel distance to consider "sitting together"
+        
+        for (student1_id, student2_id), distances in pairwise_distances.items():
+            if len(distances) < 2:  # Need at least 2 sessions together
+                continue
+            
+            # Average distance across all sessions they attended together
+            avg_distance = np.mean(distances)
+            proximity_score = 1.0 - (avg_distance / MAX_DISTANCE)  # Inverse: smaller distance = higher score
+            proximity_score = max(0, min(1, proximity_score))  # Clamp to 0-1
+            
+            # Consistency: how often are they at similar distances?
+            distance_variance = np.std(distances)
+            consistency = 1.0 / (1.0 + distance_variance)  # Lower variance = higher consistency
+            
+            # CO-SEATING SCORE (primary indicator)
+            # How close do they sit WHEN they're in the same class?
+            close_sessions = sum(1 for d in distances if d < MAX_DISTANCE * 0.7)  # Very close sessions
+            close_ratio = close_sessions / len(distances)
+            
+            # Final friendship score combines:
+            # - Proximity (how close they sit)
+            # - Consistency (how regularly they sit close)
+            # - Frequency (how many sessions together)
+            friendship_score = (proximity_score * 0.4) + (consistency * 0.3) + (close_ratio * 0.3)
+            
+            # Determine friendship strength
+            if friendship_score >= 0.75 and len(distances) >= 5:
+                strength = 'CLOSE'
+                reason = f'Consistently sit very close ({avg_distance:.0f}px avg)'
+            elif friendship_score >= 0.60 and len(distances) >= 3:
+                strength = 'MODERATE'
+                reason = f'Regular close seating ({avg_distance:.0f}px avg)'
+            elif friendship_score >= 0.45:
+                strength = 'CASUAL'
+                reason = f'Occasional nearby seating ({avg_distance:.0f}px avg)'
+            else:
+                continue  # Don't report weak friendships
+            
+            friendships.append({
+                'student1_id': student1_id,
+                'student2_id': student2_id,
+                'sessions_together': len(distances),
+                'avg_seating_distance': float(avg_distance),
+                'proximity_score': float(proximity_score),
+                'consistency_score': float(consistency),
+                'friendship_score': float(friendship_score),
+                'friendship_strength': strength,
+                'reason': reason,
+                'close_sessions_count': int(close_sessions)
+            })
+        
+        # Sort by friendship score
+        friendships.sort(key=lambda x: x['friendship_score'], reverse=True)
+        
+        # Identify friend groups (clusters of students who sit together)
+        networks = self._identify_friend_networks(friendships, pairwise_distances.keys())
+        
+        return {
+            'friendships': friendships[:25],  # Top 25 friendships
+            'total_friendships': len(friendships),
+            'friend_networks': networks
+        }
+    
+    def _identify_friend_networks(self, friendships, all_pairs):
+        """Identify clusters of students who sit together (friend groups)"""
+        if not friendships:
+            return []
+        
+        from collections import defaultdict
+        adj = defaultdict(set)
+        
+        # Build adjacency graph (only strong friendships)
+        for fs in friendships:
+            if fs['friendship_strength'] in ['CLOSE', 'MODERATE']:
+                adj[fs['student1_id']].add(fs['student2_id'])
+                adj[fs['student2_id']].add(fs['student1_id'])
+        
+        # Find connected components
+        visited = set()
+        groups = []
+        
+        for student in adj:
+            if student not in visited:
+                group = self._dfs_group(student, adj, visited)
+                if len(group) >= 2:
+                    groups.append({
+                        'members': list(group),
+                        'group_size': len(group),
+                        'cohesion': 'VERY_HIGH' if len(group) >= 4 else 'HIGH' if len(group) == 3 else 'MEDIUM',
+                        'type': 'STUDY_GROUP' if len(group) >= 3 else 'FRIEND_PAIR'
+                    })
+        
+        return groups
+    
+    def _dfs_group(self, student, adj, visited):
+        """DFS to find connected components (friend groups)"""
+        visited.add(student)
+        group = {student}
+        
+        for neighbor in adj[student]:
+            if neighbor not in visited:
+                group.update(self._dfs_group(neighbor, adj, visited))
+        
+        return group
+    
+    def assess_wellness_risk(self, attendance_data):
+        """
+        Health/Wellness Risk Score: Detects sudden absence patterns
+        Logic: Sudden increase in absences or frequent absences indicates health/personal issues
+        Returns: Students needing wellness check-in
+        """
+        features_df = self.prepare_student_features(attendance_data)
+        if features_df.empty:
+            return {'at_wellness_risk': []}
+        
+        wellness_risks = []
+        
+        for _, row in features_df.iterrows():
+            risk_factors = []
+            wellness_score = 0  # Higher = more at-risk
+            
+            # Factor 1: Frequent absences
+            if row['absent_count'] >= row['total_sessions'] * 0.3:
+                risk_factors.append('Frequent absences detected')
+                wellness_score += 25
+            
+            # Factor 2: Consecutive absences
+            if row['consecutive_absences'] >= 3:
+                risk_factors.append(f'{int(row["consecutive_absences"])} consecutive absences')
+                wellness_score += 30
+            
+            # Factor 3: Declining trend (attendance getting worse)
+            if row['trend'] < -2:
+                risk_factors.append('Attendance declining rapidly')
+                wellness_score += 25
+            
+            # Factor 4: Irregular pattern (suggests uncertainty/health issues)
+            if row['regularity'] < 0.25:
+                risk_factors.append('Highly irregular attendance pattern')
+                wellness_score += 20
+            
+            if wellness_score >= 50:
+                wellness_risks.append({
+                    'student_id': str(row['student_id']),
+                    'wellness_risk_score': float(wellness_score / 100),
+                    'risk_level': 'HIGH' if wellness_score >= 75 else 'MEDIUM',
+                    'risk_factors': risk_factors,
+                    'recommendation': self._wellness_recommendation(wellness_score, risk_factors),
+                    'attendance_rate': float(row['attendance_rate'])
+                })
+        
+        wellness_risks.sort(key=lambda x: x['wellness_risk_score'], reverse=True)
+        
+        return {
+            'total_students_at_risk': len(wellness_risks),
+            'at_wellness_risk': wellness_risks
+        }
+    
+    def _wellness_recommendation(self, risk_score, risk_factors):
+        """Generate wellness check-in recommendation"""
+        if risk_score >= 75:
+            return 'Urgent: Schedule 1-on-1 meeting with student & counselor'
+        elif risk_score >= 60:
+            return 'Important: Follow-up needed, check on student well-being'
+        else:
+            return 'Monitor: Track attendance improvements'
+    
+    def predict_poor_performers(self, attendance_data, grade_data=None):
+        """
+        Performance Predictor: Identifies students likely to perform poorly
+        Logic: Inconsistent attendance + declining trend = poor academic performance risk
+        Returns: Students at risk of poor grades
+        """
+        features_df = self.prepare_student_features(attendance_data)
+        if features_df.empty:
+            return {'poor_performers_risk': []}
+        
+        poor_performers = []
+        
+        for _, row in features_df.iterrows():
+            performance_risk = 0
+            risk_reasons = []
+            
+            # Criterion 1: Low attendance rate
+            if row['attendance_rate'] < 0.70:
+                performance_risk += 30
+                risk_reasons.append(f'Low attendance: {row["attendance_rate"]*100:.1f}%')
+            elif row['attendance_rate'] < 0.80:
+                performance_risk += 15
+                risk_reasons.append(f'Below average attendance: {row["attendance_rate"]*100:.1f}%')
+            
+            # Criterion 2: High absence concentration (irregular pattern)
+            if row['regularity'] < 0.40:
+                performance_risk += 25
+                risk_reasons.append('Inconsistent/irregular attendance')
+            
+            # Criterion 3: Declining attendance trend
+            if row['trend'] < -1:
+                performance_risk += 20
+                risk_reasons.append('Recent attendance decline')
+            
+            # Criterion 4: Long absence streaks
+            if row['consecutive_absences'] >= 4:
+                performance_risk += 25
+                risk_reasons.append(f'Extended absence period detected')
+            
+            if performance_risk >= 40:
+                poor_performers.append({
+                    'student_id': str(row['student_id']),
+                    'performance_risk_score': float(performance_risk / 100),
+                    'risk_level': 'CRITICAL' if performance_risk >= 80 else 'HIGH' if performance_risk >= 60 else 'MODERATE',
+                    'risk_reasons': risk_reasons,
+                    'attendance_rate': float(row['attendance_rate']),
+                    'action_items': self._performance_action_items(performance_risk)
+                })
+        
+        poor_performers.sort(key=lambda x: x['performance_risk_score'], reverse=True)
+        
+        return {
+            'total_at_risk': len(poor_performers),
+            'poor_performers_risk': poor_performers
+        }
+    
+    def _performance_action_items(self, risk_score):
+        """Generate action items based on performance risk"""
+        if risk_score >= 80:
+            return [
+                'Mandatory attendance tutoring sessions',
+                'Teacher-parent conference',
+                'Daily attendance tracking',
+                'Consider academic support plan'
+            ]
+        elif risk_score >= 60:
+            return [
+                'Weekly check-ins on attendance',
+                'Encourage attendance improvement',
+                'Offer peer mentoring',
+                'Monitor grades closely'
+            ]
+        else:
+            return [
+                'Monitor attendance trends',
+                'Provide encouragement',
+                'Review academic progress'
+            ]
+    
+    def calculate_engagement_score(self, attendance_data):
+        """
+        Engagement Score: Combines attendance rate + consistency
+        Logic: Good attendance + consistent pattern = high engagement
+        Returns: Student engagement profiles
+        """
+        features_df = self.prepare_student_features(attendance_data)
+        if features_df.empty:
+            return {'engagement_profiles': []}
+        
+        engagement_scores = []
+        
+        for _, row in features_df.iterrows():
+            # Engagement = 60% attendance rate + 40% consistency/regularity
+            attendance_score = row['attendance_rate'] * 0.6
+            consistency_score = row['regularity'] * 0.4
+            engagement = attendance_score + consistency_score
+            
+            # Cap at 1.0
+            engagement = min(engagement, 1.0)
+            
+            profile = {
+                'student_id': str(row['student_id']),
+                'engagement_score': float(engagement),
+                'engagement_level': self._classify_engagement(engagement),
+                'attendance_component': float(row['attendance_rate']),
+                'consistency_component': float(row['regularity']),
+                'total_sessions': int(row['total_sessions']),
+                'present_count': int(row['present_count']),
+                'engagement_insight': self._engagement_insight(engagement, row)
+            }
+            engagement_scores.append(profile)
+        
+        engagement_scores.sort(key=lambda x: x['engagement_score'], reverse=True)
+        
+        return {
+            'total_students': len(engagement_scores),
+            'engagement_profiles': engagement_scores
+        }
+    
+    def _classify_engagement(self, score):
+        """Classify engagement level"""
+        if score >= 0.85:
+            return 'EXCELLENT'
+        elif score >= 0.70:
+            return 'GOOD'
+        elif score >= 0.50:
+            return 'FAIR'
+        elif score >= 0.30:
+            return 'LOW'
+        else:
+            return 'VERY_LOW'
+    
+    def _engagement_insight(self, score, row):
+        """Generate insight about engagement"""
+        if score >= 0.85:
+            return f'Highly engaged student - excellent role model'
+        elif score >= 0.70:
+            return f'Consistently engaged - maintain momentum'
+        elif score >= 0.50 and row['trend'] >= 0:
+            return f'Improving engagement - keep encouraging'
+        elif row['regularity'] < 0.3:
+            return f'Unpredictable attendance - needs structured support'
+        else:
+            return f'Low engagement - needs intervention'

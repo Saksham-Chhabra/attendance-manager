@@ -472,3 +472,378 @@ Potential features to add:
 - [ ] Comparative class/teacher analytics
 - [ ] Mobile app dashboard
 - [ ] Real-time notification system
+
+---
+
+# NEW: Advanced Analytics Features (v2.0)
+
+## Feature 5: **Student Friendships & Closeness Analysis**
+
+### Overview
+Identifies students who frequently attend classes together, indicating potential friendships or study partnerships.
+
+### How It Works
+- **Logic:** Students attending the same sessions multiple times likely have social connections
+- **Calculation:** Co-attendance frequency / Total opportunities to be together
+- **Similarity Score:** 0-1 (0 = never together, 1 = always together)
+
+### Friendship Strength Levels
+- **CLOSE:** 75%+ similarity + 5+ sessions together
+  - Strong friendship indicators
+  - Likely study partners
+  - Strong peer influence potential
+
+- **MODERATE:** 60-74% similarity + 3-4 sessions together
+  - Regular study partners
+  - Similar schedules
+  - Potential collaborative learning
+
+- **CASUAL:** 40-59% similarity + 2+ sessions together
+  - Occasional class interactions
+  - Possible acquaintances
+  - Low influence level
+
+### API Endpoint
+```
+POST /api/analytics/friendships
+Body: { "classId": "..." }
+
+Response:
+{
+  "classId": "...",
+  "totalFriendships": 12,
+  "friendships": [
+    {
+      "student1_id": "...",
+      "student2_id": "...",
+      "sessions_together": 8,
+      "similarity_score": 0.89,
+      "friendship_strength": "CLOSE"
+    }
+  ],
+  "friend_networks": [
+    {
+      "members": ["...", "...", "..."],
+      "size": 3,
+      "type": "CLOSE_PAIR"
+    }
+  ]
+}
+```
+
+### Use Cases
+- **Peer Tutoring:** Pair strong students with struggling ones (who are already friends)
+- **Group Projects:** Form groups with existing friendships for better collaboration
+- **Social Integration:** Identify isolated students lacking friend groups
+- **Study Circles:** Recognize natural study groups forming
+- **Intervention Teams:** Pair at-risk students with supportive friends
+
+### Insights Provided
+- Friendship strength (CLOSE/MODERATE/CASUAL)
+- Sessions attended together
+- Friend networks (clusters of close friends)
+- Connection strength as percentage
+
+---
+
+## Feature 6: **Wellness & Health Risk Assessment**
+
+### Overview
+Detects students who may have health, personal, or family issues based on sudden attendance changes or frequent absences.
+
+### How It Works
+- **Indicators Monitored:**
+  - Frequency of absences (>30% = frequent)
+  - Consecutive absences (3+ = concerning)
+  - Sudden attendance decline
+  - Irregular attendance patterns
+
+- **Risk Score:** 0-1.0
+  - 0.0-0.5: Low risk
+  - 0.5-0.75: Medium risk (monitoring needed)
+  - 0.75-1.0: High risk (urgent intervention)
+
+### Risk Levels
+- **HIGH:** Requires urgent wellness check-in
+  - Schedule 1-on-1 meeting with student & counselor
+  - Assess mental health and well-being
+  - Explore external factors
+
+- **MEDIUM:** Important follow-up needed
+  - Personal check-in with student
+  - Understand challenges
+  - Provide support resources
+
+### Risk Factors Detected
+- Frequent absences
+- Consecutive absence streaks
+- Rapid attendance decline
+- Highly irregular patterns
+
+### API Endpoint
+```
+POST /api/analytics/wellness-risk
+Body: { "classId": "..." }
+
+Response:
+{
+  "classId": "...",
+  "total_at_risk": 3,
+  "wellness_risks": [
+    {
+      "student_id": "...",
+      "wellness_risk_score": 0.78,
+      "risk_level": "HIGH",
+      "risk_factors": [
+        "3 consecutive absences detected",
+        "Rapid attendance decline"
+      ],
+      "recommendation": "Urgent: Schedule meeting with student & counselor",
+      "attendance_rate": 0.45
+    }
+  ]
+}
+```
+
+### Use Cases
+- **Student Support:** Identify students needing counselor or advisor assistance
+- **Early Intervention:** Catch health/personal crises early
+- **Wellness Programs:** Target support resources to at-risk students
+- **Safety Monitoring:** Flag potential mental health concerns
+- **Family Communication:** Initiate parent/guardian contact appropriately
+
+### Ethical Considerations
+- **Purpose:** Support, not surveillance
+- **Privacy:** Treat sensitively and confidentially
+- **Human Connection:** Always follow up with personal conversation
+- **Holistic Approach:** Consider context (illness, family issues, emergencies)
+- **Respect:** Maintain dignity and confidentiality
+
+---
+
+## Feature 7: **Performance Risk Prediction**
+
+### Overview
+Predicts students likely to perform poorly academically based on attendance patterns and consistency.
+
+### How It Works
+- **Assumption:** Consistent attendance → Better academic performance
+- **Risk Factors:**
+  - Low attendance (<70%)
+  - High absence concentration (irregular pattern)
+  - Declining attendance trend
+  - Extended absence periods
+
+- **Risk Score:** 0-1.0
+  - Based on multiple absence indicators
+  - Weighted by severity
+
+### Risk Levels
+- **CRITICAL:** Immediate action required
+  - Mandatory tutoring/study sessions
+  - Teacher-parent conference
+  - Daily attendance tracking
+  - Formal intervention plan
+
+- **HIGH:** Significant concern
+  - Weekly check-ins
+  - Encourage attendance improvement
+  - Offer peer mentoring
+  - Monitor grades closely
+
+- **MODERATE:** Monitor & support
+  - Attendance trend monitoring
+  - Encouragement & motivation
+  - Academic progress review
+
+### Performance Factors
+- Attendance rate (primary indicator)
+- Consistency of presence
+- Absence count and pattern
+- Recent trend direction
+
+### API Endpoint
+```
+POST /api/analytics/performance-risk
+Body: { "classId": "..." }
+
+Response:
+{
+  "classId": "...",
+  "total_at_risk": 5,
+  "poor_performers": [
+    {
+      "student_id": "...",
+      "performance_risk_score": 0.72,
+      "risk_level": "HIGH",
+      "risk_reasons": [
+        "Low attendance: 62.5%",
+        "High absence count"
+      ],
+      "attendance_rate": 0.625,
+      "action_items": [
+        "Weekly check-ins",
+        "Offer peer mentoring",
+        "Monitor grades closely"
+      ]
+    }
+  ]
+}
+```
+
+### Use Cases
+- **Early Intervention:** Identify struggling students before grades drop
+- **Tutoring Programs:** Target additional academic support
+- **GPA Protection:** Help maintain satisfactory standing
+- **Probation Support:** Monitor probationed students
+- **Parent Communication:** Proactive family engagement
+- **Resource Allocation:** Distribute tutoring wisely
+
+### Limitations
+- **Correlation, Not Causation:** Low attendance correlates with poor performance but doesn't prove it
+- **Missing Context:** Doesn't account for learning disabilities, external factors
+- **Historical Patterns:** Works best with established history
+- **Individual Variation:** Some students can succeed with less attendance
+
+---
+
+## Feature 8: **Engagement Score & Profiles**
+
+### Overview
+Comprehensive engagement metric combining attendance frequency and consistency to provide holistic student engagement picture.
+
+### How It Works
+**Engagement Score = (Attendance Rate × 0.6) + (Consistency × 0.4)**
+
+- **Attendance Component (60%):** How often student attends
+  - Range: 0-1.0 (0% to 100% attendance)
+
+- **Consistency Component (40%):** How regular the attendance is
+  - Range: 0-1.0 (highly erratic to perfectly consistent)
+  - Measures predictability of presence
+
+### Engagement Levels
+- **EXCELLENT:** 85-100% engagement
+  - Highly engaged student
+  - Excellent role model
+  - Strong presence every session
+
+- **GOOD:** 70-84% engagement
+  - Consistently engaged
+  - Maintain current momentum
+  - Reliable attendance
+
+- **FAIR:** 50-69% engagement
+  - Moderate engagement
+  - If improving trend: "Keep encouraging"
+  - If declining: "Needs attention"
+
+- **LOW:** 30-49% engagement
+  - Low engagement overall
+  - Needs structured support
+  - Potential intervention candidate
+
+- **VERY_LOW:** <30% engagement
+  - Critical low engagement
+  - Requires intervention
+  - Major attendance issues
+
+### Insights Provided
+- Overall engagement score (0-100)
+- Attendance component breakdown
+- Consistency component breakdown
+- Personalized insight suggestions
+- Trend interpretation
+
+### API Endpoint
+```
+POST /api/analytics/engagement
+Body: { "classId": "..." }
+
+Response:
+{
+  "classId": "...",
+  "total_students": 30,
+  "engagement_profiles": [
+    {
+      "student_id": "...",
+      "engagement_score": 0.88,
+      "engagement_level": "EXCELLENT",
+      "attendance_component": 0.95,
+      "consistency_component": 0.75,
+      "total_sessions": 20,
+      "present_count": 19,
+      "insight": "Highly engaged student - excellent role model"
+    }
+  ]
+}
+```
+
+### Use Cases
+- **Holistic Assessment:** View overall student engagement
+- **Trend Analysis:** Track engagement changes over time
+- **Recognition Programs:** Celebrate excellent engagement
+- **Intervention Targeting:** Focus support on disengaged students
+- **Parent Reports:** Provide comprehensive engagement metrics
+- **Class Composition:** Understand overall class engagement health
+- **Strategic Pairing:** Pair highly engaged with low-engagement students
+
+### Advantages Over Raw Attendance
+- **Balanced View:** Considers both frequency AND consistency
+- **Contextual:** Recognizes irregular students vs. consistently absent
+- **Fair Assessment:** Doesn't penalize one missed session
+- **Actionable:** Provides clear leveling for intervention
+- **Motivating:** Can be shared positively with students
+
+---
+
+## Combined Usage Scenarios
+
+### Scenario 1: At-Risk Student Support Program
+1. **Performance Risk Prediction** - Identify poor performers
+2. **Wellness Assessment** - Check for health/personal issues
+3. **Friendships Analysis** - Find supportive friends
+4. **Engagement Score** - Assess overall engagement
+5. **Action:** Pair with high-engagement friend for tutoring support
+
+### Scenario 2: Class Intervention Program
+1. **Cluster Analysis** - Identify "Frequent Absentees" cluster
+2. **Engagement Scores** - See overall engagement trend
+3. **Performance Risk** - Determine which need academic support
+4. **Wellness Risk** - Identify who need counseling
+5. **Action:** Design cluster-specific support program
+
+### Scenario 3: Social Integration Initiative
+1. **Friendships Analysis** - Identify isolated students
+2. **Friend Networks** - See existing study groups
+3. **Engagement Scores** - Find well-engaged peers
+4. **Action:** Connect isolated students with engaged friend groups
+
+### Scenario 4: Early Semester Intervention
+1. **Performance Risk** - Flag potential poor performers early
+2. **Wellness Assessment** - Identify struggling students
+3. **Engagement Scores** - Benchmark expected engagement
+4. **Action:** Early intervention before course gets too far
+
+---
+
+## Implementation Notes
+
+### Data Quality
+- All features require accurate attendance data
+- Requires minimum 2 weeks of attendance history for meaningful results
+- Works best with regular, scheduled classes
+- Irregular class schedules may affect accuracy
+
+### Performance Considerations
+- All calculations done in real-time
+- No pre-training required (unsupervised)
+- Works with existing MongoDB data
+- Suitable for classes up to 500+ students
+
+### Privacy & Ethics
+- **Use for Support:** All features designed to HELP students
+- **Confidentiality:** Treat all data as sensitive information
+- **Human Judgment:** Always verify findings with personal conversation
+- **Intervention-Focused:** Data is tool for intervention, not punishment
+- **Student Dignity:** Maintain respect throughout process

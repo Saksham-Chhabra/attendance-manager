@@ -16,6 +16,8 @@ const ClassDetail = () => {
   const [refreshingCode, setRefreshingCode] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showStudentProfile, setShowStudentProfile] = useState(false);
   
   const [filterMode, setFilterMode] = useState('all');
   
@@ -137,7 +139,7 @@ const ClassDetail = () => {
      return <div className="p-8 text-white">Class not found</div>;
   }
 
-  const filteredStudents = analytics?.studentStats.filter(s => {
+  const filteredStudents = analytics?.studentStats?.filter(s => {
     if (filterMode === 'all') return true;
     if (filterMode === 'excel') return s.attendanceRate >= 90;
     if (filterMode === 'pass') return s.attendanceRate >= 75;
@@ -188,6 +190,12 @@ const ClassDetail = () => {
                 >
                    <Trash2 size={18} /> Delete Server
                 </button>
+                <Link 
+                   to={`/faculty/class/${cls._id}/analytics`}
+                   className="w-full sm:w-auto justify-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-purple-600/20 transition-colors flex items-center gap-2 group"
+                >
+                   <TrendingUp size={20} className="group-hover:scale-110 transition-transform" /> Analytics
+                </Link>
                 <Link 
                    to={`/faculty/class/${cls._id}/attendance`}
                    className="w-full sm:w-auto justify-center bg-primary-dark hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-primary-dark/20 transition-colors flex items-center gap-2 group"
@@ -255,7 +263,7 @@ const ClassDetail = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
              <h2 className="text-2xl font-poppins font-black flex items-center gap-3">
                 <LinkIcon size={24} className="text-primary-dark" />
-                Enrolled Roster <span className="text-text-dark-secondary text-lg">({cls.students?.length || 0})</span>
+                Enrolled Student <span className="text-text-dark-secondary text-lg">({cls.students?.length || 0})</span>
              </h2>
 
              {/* Roster Filters */}
@@ -293,7 +301,7 @@ const ClassDetail = () => {
           ) : (
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
                 {filteredStudents.map((student) => (
-                   <div key={student._id} className="bg-card-dark border border-white/5 p-4 rounded-3xl flex items-center gap-4 hover:border-primary-dark/30 hover:bg-white/[0.02] transition-colors group cursor-pointer">
+                   <div key={student._id} onClick={() => { setSelectedStudent(student); setShowStudentProfile(true); }} className="bg-card-dark border border-white/5 p-4 rounded-3xl flex items-center gap-4 hover:border-primary-dark/30 hover:bg-white/[0.02] transition-colors group cursor-pointer">
                       
                       {/* Radial Progress Ring */}
                       <CircularProgress value={student.attendanceRate} />
@@ -317,6 +325,94 @@ const ClassDetail = () => {
              </div>
           )}
         </div>
+
+        {/* STUDENT PROFILE MODAL */}
+        {showStudentProfile && selectedStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in p-4 sm:p-0">
+             <div className="fixed inset-0 z-40" onClick={() => setShowStudentProfile(false)} />
+             <div className="bg-card-dark border border-white/10 w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative z-50 animate-in zoom-in-95 max-h-96 overflow-y-auto">
+                <button 
+                  onClick={() => setShowStudentProfile(false)}
+                  className="absolute top-6 right-6 bg-white/5 hover:bg-white/10 p-2 rounded-lg text-text-dark-secondary hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
+
+                <div className="mb-8">
+                  <h2 className="text-3xl font-poppins font-black text-white mb-2">{selectedStudent.name}</h2>
+                  <p className="text-text-dark-secondary">{selectedStudent.email}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <p className="text-xs uppercase tracking-widest text-text-dark-secondary font-bold mb-2">Roll Number</p>
+                    <p className="text-2xl font-black text-white">{selectedStudent.rollNumber || 'N/A'}</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <p className="text-xs uppercase tracking-widest text-text-dark-secondary font-bold mb-2">Attendance Rate</p>
+                    <p className="text-2xl font-black text-primary-dark">{selectedStudent.attendanceRate || '0.00'}%</p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <p className="text-xs uppercase tracking-widest text-text-dark-secondary font-bold mb-2">Role</p>
+                    <p className="text-2xl font-black text-emerald-400">Student</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <p className="text-sm font-bold text-white mb-4">Attendance Summary</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-text-dark-secondary">Present:</span>
+                        <span className="font-bold text-emerald-400">{selectedStudent.attended !== undefined ? selectedStudent.attended : 0} sessions</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-dark-secondary">Absent:</span>
+                        <span className="font-bold text-red-400">{(selectedStudent.total || 0) - (selectedStudent.attended || 0)} sessions</span>
+                      </div>
+                      <div className="flex justify-between border-t border-white/5 pt-2 mt-2">
+                        <span className="text-white font-bold">Total Sessions:</span>
+                        <span className="font-bold text-primary-dark">{selectedStudent.total || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <p className="text-sm font-bold text-white mb-4">Status</p>
+                    <div className="space-y-2">
+                      <div className={`px-3 py-2 rounded-lg text-sm font-bold ${
+                        (selectedStudent.attendanceRate || 0) >= 75
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : (selectedStudent.attendanceRate || 0) >= 50
+                          ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                          : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      }`}>
+                        {(selectedStudent.attendanceRate || 0) >= 75
+                          ? '✓ Good Standing'
+                          : (selectedStudent.attendanceRate || 0) >= 50
+                          ? '⚠ Warning'
+                          : '✕ At Risk'}
+                      </div>
+                      <p className="text-xs text-text-dark-secondary mt-3">
+                        {(selectedStudent.attendanceRate || 0) >= 75
+                          ? 'Student is maintaining satisfactory attendance.'
+                          : (selectedStudent.attendanceRate || 0) >= 50
+                          ? 'Student attendance needs improvement.'
+                          : 'Student is at risk due to low attendance.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowStudentProfile(false)}
+                  className="w-full bg-primary-dark hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+             </div>
+          </div>
+        )}
 
         {/* DELETE CLASS MODAL */}
         {showDeleteModal && (

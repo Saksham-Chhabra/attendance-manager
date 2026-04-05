@@ -19,6 +19,12 @@ router.post('/clustering', analyticsController.getStudentClusters);
 // Anomaly Detection
 router.post('/anomalies', analyticsController.detectAnomalies);
 
+// Advanced Analytics Features
+router.post('/friendships', analyticsController.analyzeStudentFriendships);
+router.post('/wellness-risk', analyticsController.assessWellnessRisk);
+router.post('/performance-risk', analyticsController.predictPoorPerformers);
+router.post('/engagement', analyticsController.calculateEngagementScores);
+
 // Analytics Configuration
 router.get('/config', restrictTo('admin'), analyticsController.getAnalyticsConfig);
 router.put('/config', restrictTo('admin'), analyticsController.updateAnalyticsConfig);

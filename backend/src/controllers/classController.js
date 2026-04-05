@@ -63,7 +63,7 @@ export const getClasses = async (req, res) => {
  */
 export const getClassById = async (req, res) => {
   try {
-    const cls = await Class.findById(req.params.id).populate('students', 'name email rollNumber faceEnrollment role');
+    const cls = await Class.findById(req.params.id).populate('students', '_id name email rollNumber faceEnrollment role');
     if (!cls) return res.status(404).json({ status: 'fail', message: 'Class not found' });
     res.status(200).json({ status: 'success', data: { class: cls } });
   } catch (error) {
@@ -427,11 +427,17 @@ export const submitClassAttendance = async (req, res) => {
   try {
     const classId = req.params.id;
     const { records, method } = req.body; 
-    // records should be an array: [{ studentId: '...', status: 'present'|'absent' }]
+    // records should be an array: [{ studentId: '...', status: 'present'|'absent', facePosition: {...} }]
 
     if (!records || !Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ status: 'fail', message: 'No attendance records provided' });
     }
+
+    // Debug logging
+    console.log('Attendance Records Received:', records.slice(0, 3)); // Log first 3 records
+    console.log('Total records:', records.length);
+    const presentCount = records.filter(r => r.status === 'present').length;
+    console.log('Present count:', presentCount, 'Absent count:', records.length - presentCount);
 
     const classData = await Class.findById(classId);
     if (!classData) return res.status(404).json({ status: 'fail', message: 'Class not found' });
@@ -445,12 +451,36 @@ export const submitClassAttendance = async (req, res) => {
     });
 
     // 2. Prepare Attendance Records mappings to bulk inject (save DB overhead)
-    const attendanceRecords = records.map(record => ({
-      student: record.studentId,
-      session: session._id,
-      status: record.status,
-      timestamp: new Date()
-    }));
+    // Include face position data if available for friendship analysis
+    const attendanceRecords = records.map(record => {
+      const recordObj = {
+        student: record.studentId,
+        session: session._id,
+        status: record.status || 'absent', // Default to absent if not provided
+        timestamp: new Date()
+      };
+      
+      // Include face position data for seating-based friendship analysis
+      if (record.facePosition) {
+        recordObj.facePosition = {
+          x: record.facePosition.x,
+          y: record.facePosition.y,
+          width: record.facePosition.width || 0,
+          height: record.facePosition.height || 0,
+          left: record.facePosition.left || 0,
+          top: record.facePosition.top || 0,
+          right: record.facePosition.right || 0,
+          bottom: record.facePosition.bottom || 0,
+          confidence: record.facePosition.confidence || 0.95
+        };
+      }
+      
+      if (record.imageUrl) {
+        recordObj.imageUrl = record.imageUrl;
+      }
+      
+      return recordObj;
+    });
 
     // 3. Insert Many
     await AttendanceRecord.insertMany(attendanceRecords);
@@ -460,7 +490,8 @@ export const submitClassAttendance = async (req, res) => {
       message: 'Attendance submitted successfully',
       data: {
         sessionId: session._id,
-        recordsCreated: attendanceRecords.length
+        recordsCreated: attendanceRecords.length,
+        presentCount: attendanceRecords.filter(r => r.status === 'present').length
       }
     });
 

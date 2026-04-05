@@ -31,6 +31,7 @@ import mlRoutes from './routes/mlRoutes.js';
 import classRoutes from './routes/classRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
+import friendshipRoutes from './routes/friendshipRoutes.js';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
@@ -38,6 +39,7 @@ app.use('/api/ml', mlRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/friendships', friendshipRoutes);
 
 const PORT = process.env.PORT || 5000;
 
